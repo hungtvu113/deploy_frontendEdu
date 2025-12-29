@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import {
   FileText,
@@ -10,6 +10,7 @@ import {
   Trash2,
   Award,
   Filter,
+  Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -48,6 +49,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { examsApi, usersApi, scoresApi } from "@/lib/api"
 
 type Score = {
   id: string
@@ -63,13 +65,23 @@ type Score = {
   createdAt: string
 }
 
-// Mock data đã được xóa - dữ liệu sẽ được lấy từ API
-const mockExams: { id: string; code: string; name: string }[] = []
-const mockStudents: { id: string; code: string; name: string }[] = []
-const initialScores: Score[] = []
+type Exam = {
+  _id: string
+  name: string
+  subject?: { code: string; name: string }
+}
+
+type Student = {
+  _id: string
+  studentId: string
+  name: string
+}
 
 export default function ScoresPage() {
-  const [scores, setScores] = useState<Score[]>(initialScores)
+  const [scores, setScores] = useState<Score[]>([])
+  const [exams, setExams] = useState<Exam[]>([])
+  const [students, setStudents] = useState<Student[]>([])
+  const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [filterExamId, setFilterExamId] = useState<string>("all")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -82,6 +94,54 @@ export default function ScoresPage() {
     score: "",
     notes: "",
   })
+
+  // Fetch data from API
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true)
+        const [examsRes, usersRes] = await Promise.all([
+          examsApi.getAll(),
+          usersApi.getAll(),
+        ])
+        
+        setExams(examsRes.data || [])
+        // Filter only students
+        const studentUsers = (usersRes.data || []).filter((u: any) => u.role === "student")
+        setStudents(studentUsers)
+        
+        // Fetch scores for all exams
+        const allScores: Score[] = []
+        for (const exam of examsRes.data || []) {
+          try {
+            const scoresRes = await scoresApi.getByExam(exam._id)
+            const examScores = (scoresRes.data || []).map((s: any) => ({
+              id: s._id,
+              examId: exam._id,
+              examName: exam.name,
+              studentId: s.student?._id || "",
+              studentCode: s.student?.studentId || "",
+              studentName: s.student?.name || "",
+              score: s.score,
+              notes: s.note || "",
+              enteredBy: s.enteredBy?.name || "Admin",
+              enteredDate: s.enteredAt || s.createdAt,
+              createdAt: s.createdAt,
+            }))
+            allScores.push(...examScores)
+          } catch (err) {
+            console.log(`No scores for exam ${exam._id}`)
+          }
+        }
+        setScores(allScores)
+      } catch (error) {
+        console.error("Error fetching data:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchData()
+  }, [])
 
   const filteredScores = scores.filter((score) => {
     const matchesSearch =
@@ -121,47 +181,60 @@ export default function ScoresPage() {
     setIsDeleteDialogOpen(true)
   }
 
-  const handleSave = () => {
-    const exam = mockExams.find((e) => e.id === formData.examId)
-    const student = mockStudents.find((s) => s.id === formData.studentId)
+  const handleSave = async () => {
+    const exam = exams.find((e) => e._id === formData.examId)
+    const student = students.find((s) => s._id === formData.studentId)
 
     if (!exam || !student) return
 
-    if (editingScore) {
-      setScores(
-        scores.map((s) =>
-          s.id === editingScore.id
-            ? {
-                ...s,
-                examId: formData.examId,
-                examName: exam.name,
-                studentId: formData.studentId,
-                studentCode: student.code,
-                studentName: student.name,
-                score: parseFloat(formData.score),
-                notes: formData.notes,
-                enteredDate: new Date().toISOString().split("T")[0],
-              }
-            : s
+    try {
+      if (editingScore) {
+        // Update score - API chưa có update, tạm thời update local
+        setScores(
+          scores.map((s) =>
+            s.id === editingScore.id
+              ? {
+                  ...s,
+                  examId: formData.examId,
+                  examName: exam.name,
+                  studentId: formData.studentId,
+                  studentCode: student.studentId || "",
+                  studentName: student.name,
+                  score: parseFloat(formData.score),
+                  notes: formData.notes,
+                  enteredDate: new Date().toISOString().split("T")[0],
+                }
+              : s
+          )
         )
-      )
-    } else {
-      const newScore: Score = {
-        id: Date.now().toString(),
-        examId: formData.examId,
-        examName: exam.name,
-        studentId: formData.studentId,
-        studentCode: student.code,
-        studentName: student.name,
-        score: parseFloat(formData.score),
-        notes: formData.notes,
-        enteredBy: "Admin User",
-        enteredDate: new Date().toISOString().split("T")[0],
-        createdAt: new Date().toISOString().split("T")[0],
+      } else {
+        // Create new score
+        await scoresApi.create({
+          student: formData.studentId,
+          exam: formData.examId,
+          score: parseFloat(formData.score),
+          note: formData.notes,
+        })
+        
+        const newScore: Score = {
+          id: Date.now().toString(),
+          examId: formData.examId,
+          examName: exam.name,
+          studentId: formData.studentId,
+          studentCode: student.studentId || "",
+          studentName: student.name,
+          score: parseFloat(formData.score),
+          notes: formData.notes,
+          enteredBy: "Admin User",
+          enteredDate: new Date().toISOString().split("T")[0],
+          createdAt: new Date().toISOString().split("T")[0],
+        }
+        setScores([...scores, newScore])
       }
-      setScores([...scores, newScore])
+      setIsDialogOpen(false)
+    } catch (error: any) {
+      alert(error.message || "Có lỗi xảy ra")
     }
-    setIsDialogOpen(false)
   }
 
   const confirmDelete = () => {
@@ -227,9 +300,9 @@ export default function ScoresPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tất cả kỳ thi</SelectItem>
-                {mockExams.map((exam) => (
-                  <SelectItem key={exam.id} value={exam.id}>
-                    {exam.code} - {exam.name}
+                {exams.map((exam) => (
+                  <SelectItem key={exam._id} value={exam._id}>
+                    {exam.subject?.code || ""} - {exam.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -264,7 +337,16 @@ export default function ScoresPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredScores.length === 0 ? (
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={9} className="text-center py-8">
+                  <div className="flex flex-col items-center gap-2">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                    <p>Đang tải dữ liệu...</p>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : filteredScores.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={9} className="text-center py-8">
                   <div className="flex flex-col items-center gap-2 text-muted-foreground">
@@ -366,9 +448,9 @@ export default function ScoresPage() {
                   <SelectValue placeholder="Chọn kỳ thi" />
                 </SelectTrigger>
                 <SelectContent>
-                  {mockExams.map((exam) => (
-                    <SelectItem key={exam.id} value={exam.id}>
-                      {exam.code} - {exam.name}
+                  {exams.map((exam) => (
+                    <SelectItem key={exam._id} value={exam._id}>
+                      {exam.subject?.code || ""} - {exam.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -387,9 +469,9 @@ export default function ScoresPage() {
                   <SelectValue placeholder="Chọn học viên" />
                 </SelectTrigger>
                 <SelectContent>
-                  {mockStudents.map((student) => (
-                    <SelectItem key={student.id} value={student.id}>
-                      {student.code} - {student.name}
+                  {students.map((student) => (
+                    <SelectItem key={student._id} value={student._id}>
+                      {student.studentId} - {student.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
