@@ -11,6 +11,7 @@ import {
   Award,
   Filter,
   Loader2,
+  Sparkles,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -237,11 +238,29 @@ export default function ScoresPage() {
     }
   }
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (deletingScore) {
-      setScores(scores.filter((s) => s.id !== deletingScore.id))
-      setIsDeleteDialogOpen(false)
-      setDeletingScore(null)
+      try {
+        await scoresApi.delete(deletingScore.id)
+        setScores(scores.filter((s) => s.id !== deletingScore.id))
+        setIsDeleteDialogOpen(false)
+        setDeletingScore(null)
+      } catch (error: any) {
+        alert(error.message || "Không thể xóa điểm")
+      }
+    }
+  }
+
+  const handleCleanup = async () => {
+    if (!confirm("Bạn có chắc muốn xóa tất cả điểm không có kỳ thi hợp lệ?")) return
+    
+    try {
+      const res = await scoresApi.cleanupOrphans()
+      alert(res.message || "Đã dọn dẹp xong!")
+      // Reload data
+      window.location.reload()
+    } catch (error: any) {
+      alert(error.message || "Không thể dọn dẹp dữ liệu")
     }
   }
 
@@ -309,10 +328,16 @@ export default function ScoresPage() {
             </Select>
           </div>
         </div>
-        <Button onClick={handleAdd} className="gap-2">
-          <Plus className="w-4 h-4" />
-          Nhập điểm
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={handleCleanup} variant="outline" className="gap-2">
+            <Sparkles className="w-4 h-4" />
+            Dọn dẹp
+          </Button>
+          <Button onClick={handleAdd} className="gap-2">
+            <Plus className="w-4 h-4" />
+            Nhập điểm
+          </Button>
+        </div>
       </motion.div>
 
       {/* Table */}

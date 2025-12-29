@@ -535,44 +535,39 @@ export default function ExamsPage() {
 
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="code">
-                  Mã kỳ thi <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="code"
-                  placeholder="VD: EX2024001"
-                  value={formData.code}
-                  onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="subject">
-                  Môn thi <span className="text-destructive">*</span>
-                </Label>
-                <Select
-                  value={formData.subjectId}
-                  onValueChange={(value) => setFormData({ ...formData, subjectId: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Chọn môn thi" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {subjects.length === 0 ? (
-                      <div className="p-2 text-sm text-muted-foreground text-center">
-                        Chưa có môn thi nào
-                      </div>
-                    ) : (
-                      subjects.map((subject) => (
-                        <SelectItem key={subject.id} value={subject.id}>
-                          {subject.code} - {subject.name}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
+            <div className="space-y-2">
+              <Label>Mã kỳ thi</Label>
+              <div className="h-10 px-3 py-2 rounded-md border bg-muted/50 flex items-center text-muted-foreground">
+                {editingExam ? editingExam.code : "Tự động tạo khi lưu"}
               </div>
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="subject">
+                Môn thi <span className="text-destructive">*</span>
+              </Label>
+              <Select
+                value={formData.subjectId}
+                onValueChange={(value) => setFormData({ ...formData, subjectId: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Chọn môn thi" />
+                </SelectTrigger>
+                <SelectContent>
+                  {subjects.length === 0 ? (
+                    <div className="p-2 text-sm text-muted-foreground text-center">
+                      Chưa có môn thi nào
+                    </div>
+                  ) : (
+                    subjects.map((subject) => (
+                      <SelectItem key={subject.id} value={subject.id}>
+                        {subject.code} - {subject.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
 
             <div className="space-y-2">
               <Label htmlFor="name">

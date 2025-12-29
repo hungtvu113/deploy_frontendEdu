@@ -196,6 +196,14 @@ export const scoresApi = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  delete: async (id: string): Promise<any> =>
+    apiCall(`/scores/${id}`, {
+      method: "DELETE",
+    }),
+  cleanupOrphans: async (): Promise<any> =>
+    apiCall("/scores/cleanup-orphans", {
+      method: "DELETE",
+    }),
   import: async (data: { examId: string; scores: Array<{ studentId: string; score: number; note?: string }> }): Promise<any> =>
     apiCall("/scores/import", {
       method: "POST",
