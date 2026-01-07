@@ -84,13 +84,15 @@ export default function StudentScoresPage() {
   const [studentId, setStudentId] = useState("")
 
   // Lấy danh sách môn học unique từ exams
-  const subjects = [
+  const subjects: { id: string; name: string }[] = [
     { id: "all", name: "Tất cả môn thi" },
     ...Array.from(
       new Map(
-        exams.map((e) => [e.subject?._id, { id: e.subject?._id, name: e.subject?.name }])
+        exams
+          .filter((e) => e.subject?._id && e.subject?.name)
+          .map((e) => [e.subject!._id, { id: e.subject!._id, name: e.subject!.name }])
       ).values()
-    ).filter((s) => s.id),
+    ),
   ]
 
   // Fetch data
