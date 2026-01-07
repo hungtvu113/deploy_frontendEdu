@@ -255,7 +255,7 @@ export default function ExamsPage() {
 
   // Lưu kỳ thi (thêm hoặc sửa)
   const handleSave = async () => {
-    if (!formData.name || !formData.subjectId || !formData.examDate) {
+    if (!formData.name || !formData.examDate) {
       toast({
         title: "Lỗi",
         description: "Vui lòng điền đầy đủ thông tin bắt buộc",
@@ -286,7 +286,7 @@ export default function ExamsPage() {
         // Sửa kỳ thi
         await examsApi.update(editingExam.id, {
           name: formData.name,
-          subject: formData.subjectId,
+          subject: formData.subjectId && formData.subjectId !== "none" ? formData.subjectId : undefined,
           examDate: formData.examDate,
           startTime: formData.startTime,
           endTime: formData.endTime,
@@ -305,7 +305,7 @@ export default function ExamsPage() {
         // Thêm kỳ thi mới
         await examsApi.create({
           name: formData.name,
-          subject: formData.subjectId,
+          subject: formData.subjectId && formData.subjectId !== "none" ? formData.subjectId : undefined,
           examDate: formData.examDate,
           startTime: formData.startTime,
           endTime: formData.endTime,
@@ -542,17 +542,16 @@ export default function ExamsPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="subject">
-                Môn thi <span className="text-destructive">*</span>
-              </Label>
+              <Label htmlFor="subject">Môn thi</Label>
               <Select
                 value={formData.subjectId}
                 onValueChange={(value) => setFormData({ ...formData, subjectId: value })}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Chọn môn thi" />
+                  <SelectValue placeholder="Chọn môn thi (không bắt buộc)" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="none">-- Không chọn môn (Kỳ thi chung) --</SelectItem>
                   {subjects.length === 0 ? (
                     <div className="p-2 text-sm text-muted-foreground text-center">
                       Chưa có môn thi nào
@@ -566,6 +565,9 @@ export default function ExamsPage() {
                   )}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                Kỳ thi không có môn sẽ hiển thị thông báo chung ở trang chủ
+              </p>
             </div>
           </div>
 
@@ -724,7 +726,7 @@ export default function ExamsPage() {
             <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSaving}>
               Hủy
             </Button>
-            <Button onClick={handleSave} disabled={isSaving || !formData.name || !formData.subjectId || !formData.examDate}>
+            <Button onClick={handleSave} disabled={isSaving || !formData.name || !formData.examDate}>
               {isSaving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               {editingExam ? "Cập nhật" : "Thêm kỳ thi"}
             </Button>

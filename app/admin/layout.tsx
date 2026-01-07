@@ -22,6 +22,7 @@ import {
   GraduationCap,
   Settings,
   User,
+  ClipboardList,
 } from "lucide-react"
 
 const navigation = [
@@ -44,6 +45,11 @@ const navigation = [
     name: "Quản lý Kỳ thi",
     href: "/admin/exams",
     icon: Calendar,
+  },
+  {
+    name: "Kỳ thi chung",
+    href: "/admin/public-exams",
+    icon: ClipboardList,
   },
   {
     name: "Quản lý Điểm",

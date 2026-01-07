@@ -143,9 +143,13 @@ export const subjectsApi = {
 export const examsApi = {
   getAll: async (): Promise<any> => apiCall("/exams"),
   getById: async (id: string): Promise<any> => apiCall(`/exams/${id}`),
+  getPublic: async (): Promise<any> => apiCall("/exams/public"),
+  getParticipants: async (id: string): Promise<any> => apiCall(`/exams/${id}/participants`),
+  register: async (id: string): Promise<any> => apiCall(`/exams/${id}/register`, { method: "POST" }),
+  unregister: async (id: string): Promise<any> => apiCall(`/exams/${id}/register`, { method: "DELETE" }),
   create: async (data: {
     name: string;
-    subject: string;
+    subject?: string;
     examDate: string;
     startTime?: string;
     endTime?: string;
@@ -287,6 +291,19 @@ export const classesApi = {
   }),
 };
 
+// Notifications API
+export const notificationsApi = {
+  getAll: async (): Promise<any> => apiCall("/notifications"),
+  getMy: async (): Promise<any> => apiCall("/notifications/my"),
+  getUnreadCount: async (): Promise<any> => apiCall("/notifications/unread-count"),
+  markAsRead: async (id: string): Promise<any> => apiCall(`/notifications/${id}/read`, {
+    method: "PUT",
+  }),
+  markAllAsRead: async (): Promise<any> => apiCall("/notifications/read-all", {
+    method: "PUT",
+  }),
+};
+
 export default {
   auth: authApi,
   subjects: subjectsApi,
@@ -294,5 +311,6 @@ export default {
   scores: scoresApi,
   users: usersApi,
   classes: classesApi,
+  notifications: notificationsApi,
 };
 

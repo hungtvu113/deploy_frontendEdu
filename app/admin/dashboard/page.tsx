@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Users,
@@ -19,7 +18,7 @@ import {
   GraduationCap,
 } from "lucide-react"
 import Link from "next/link"
-import { usersApi, examsApi, subjectsApi, classesApi } from "@/lib/api"
+import { usersApi, examsApi, subjectsApi, classesApi, scoresApi } from "@/lib/api"
 
 type ExamStatus = "completed" | "ongoing" | "upcoming"
 
@@ -58,8 +57,15 @@ export default function AdminDashboard() {
     completedExams: 0,
   })
   const [recentExams, setRecentExams] = useState<any[]>([])
+  const [scoreStats, setScoreStats] = useState({
+    excellent: 0,
+    good: 0,
+    average: 0,
+    weak: 0,
+    total: 0,
+  })
+  const [subjectStats, setSubjectStats] = useState<{name: string; count: number}[]>([])
 
-  // Tính trạng thái tự động
   const calculateStatus = (examDate: string, startTime: string, endTime: string): ExamStatus => {
     if (!examDate) return "upcoming"
     const now = new Date()
@@ -84,11 +90,9 @@ export default function AdminDashboard() {
           classesApi.getAll() as Promise<{ success: boolean; data: any[] }>,
         ])
 
-        // Đếm users theo role
         const students = usersRes.data?.filter((u: any) => u.role === "student") || []
         const teachers = usersRes.data?.filter((u: any) => u.role === "teacher") || []
 
-        // Tính status cho exams
         const examsWithStatus = (examsRes.data || []).map((exam: any) => ({
           ...exam,
           calculatedStatus: calculateStatus(exam.examDate, exam.startTime, exam.endTime)
@@ -109,8 +113,42 @@ export default function AdminDashboard() {
           completedExams: completed,
         })
 
-        // Lấy 5 kỳ thi gần nhất
         setRecentExams(examsWithStatus.slice(0, 5))
+
+        // Thống kê số kỳ thi theo môn học
+        const subjectCounts: Record<string, number> = {}
+        examsRes.data?.forEach((exam: any) => {
+          const subjectName = exam.subject?.name || "Khác"
+          subjectCounts[subjectName] = (subjectCounts[subjectName] || 0) + 1
+        })
+        const sortedSubjects = Object.entries(subjectCounts)
+          .map(([name, count]) => ({ name, count }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 5)
+        setSubjectStats(sortedSubjects)
+
+        // Fetch scores để thống kê
+        try {
+          let allScores: number[] = []
+          for (const exam of examsWithStatus.filter((e: any) => e.calculatedStatus === "completed").slice(0, 10)) {
+            try {
+              const scoresRes = await scoresApi.getByExam(exam._id)
+              if (scoresRes.success && scoresRes.data) {
+                allScores = [...allScores, ...scoresRes.data.map((s: any) => s.score)]
+              }
+            } catch {}
+          }
+          
+          setScoreStats({
+            excellent: allScores.filter(s => s >= 8.5).length,
+            good: allScores.filter(s => s >= 7 && s < 8.5).length,
+            average: allScores.filter(s => s >= 5 && s < 7).length,
+            weak: allScores.filter(s => s < 5).length,
+            total: allScores.length,
+          })
+        } catch (error) {
+          console.error("Error fetching scores:", error)
+        }
       } catch (error) {
         console.error("Error fetching dashboard data:", error)
       } finally {
@@ -126,6 +164,11 @@ export default function AdminDashboard() {
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     )
+  }
+
+  const getScorePercentage = (value: number) => {
+    if (scoreStats.total === 0) return 0
+    return Math.round((value / scoreStats.total) * 100)
   }
 
   return (
@@ -149,122 +192,146 @@ export default function AdminDashboard() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        {[
+          { icon: GraduationCap, color: "green", value: stats.totalStudents, label: "Học viên" },
+          { icon: Users, color: "blue", value: stats.totalTeachers, label: "Giáo viên" },
+          { icon: School, color: "purple", value: stats.totalClasses, label: "Lớp học" },
+          { icon: BookOpen, color: "orange", value: stats.totalSubjects, label: "Môn học" },
+          { icon: Calendar, color: "cyan", value: stats.totalExams, label: "Kỳ thi" },
+          { icon: TrendingUp, color: "yellow", value: stats.ongoingExams, label: "Đang thi" },
+        ].map((item, index) => (
+          <motion.div
+            key={item.label}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 + index * 0.05 }}
+          >
+            <Card className="hover:shadow-md transition-shadow">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-lg bg-${item.color}-500/10 flex items-center justify-center`}>
+                    <item.icon className={`w-5 h-5 text-${item.color}-500`} />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{item.value}</p>
+                    <p className="text-xs text-muted-foreground">{item.label}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Biểu đồ phân loại điểm */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
+          transition={{ duration: 0.5, delay: 0.4 }}
         >
-          <Card className="hover:shadow-md transition-shadow">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center">
-                  <GraduationCap className="w-5 h-5 text-green-500" />
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-primary" />
+                Phân loại kết quả học tập
+              </CardTitle>
+              <CardDescription>Thống kê điểm số của học viên</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {scoreStats.total === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">Chưa có dữ liệu điểm</div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-center">
+                    <div className="relative w-40 h-40">
+                      <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="40" fill="none" stroke="#e5e7eb" strokeWidth="12" />
+                        <circle cx="50" cy="50" r="40" fill="none" stroke="#22c55e" strokeWidth="12"
+                          strokeDasharray={`${getScorePercentage(scoreStats.excellent) * 2.51} 251`} strokeDashoffset="0" />
+                        <circle cx="50" cy="50" r="40" fill="none" stroke="#3b82f6" strokeWidth="12"
+                          strokeDasharray={`${getScorePercentage(scoreStats.good) * 2.51} 251`}
+                          strokeDashoffset={`${-getScorePercentage(scoreStats.excellent) * 2.51}`} />
+                        <circle cx="50" cy="50" r="40" fill="none" stroke="#eab308" strokeWidth="12"
+                          strokeDasharray={`${getScorePercentage(scoreStats.average) * 2.51} 251`}
+                          strokeDashoffset={`${-(getScorePercentage(scoreStats.excellent) + getScorePercentage(scoreStats.good)) * 2.51}`} />
+                        <circle cx="50" cy="50" r="40" fill="none" stroke="#ef4444" strokeWidth="12"
+                          strokeDasharray={`${getScorePercentage(scoreStats.weak) * 2.51} 251`}
+                          strokeDashoffset={`${-(getScorePercentage(scoreStats.excellent) + getScorePercentage(scoreStats.good) + getScorePercentage(scoreStats.average)) * 2.51}`} />
+                      </svg>
+                      <div className="absolute inset-0 flex items-center justify-center flex-col">
+                        <span className="text-2xl font-bold">{scoreStats.total}</span>
+                        <span className="text-xs text-muted-foreground">Bài thi</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-green-500" />
+                      <span>Xuất sắc (≥8.5): {scoreStats.excellent}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-blue-500" />
+                      <span>Khá (≥7): {scoreStats.good}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-yellow-500" />
+                      <span>TB (≥5): {scoreStats.average}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-red-500" />
+                      <span>Yếu (&lt;5): {scoreStats.weak}</span>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-2xl font-bold">{stats.totalStudents}</p>
-                  <p className="text-xs text-muted-foreground">Học viên</p>
-                </div>
-              </div>
+              )}
             </CardContent>
           </Card>
         </motion.div>
 
+        {/* Biểu đồ kỳ thi theo môn */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.15 }}
+          transition={{ duration: 0.5, delay: 0.45 }}
         >
-          <Card className="hover:shadow-md transition-shadow">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                  <Users className="w-5 h-5 text-blue-500" />
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BookOpen className="w-5 h-5 text-primary" />
+                Kỳ thi theo môn học
+              </CardTitle>
+              <CardDescription>Top 5 môn có nhiều kỳ thi nhất</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {subjectStats.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">Chưa có dữ liệu</div>
+              ) : (
+                <div className="space-y-3">
+                  {subjectStats.map((subject, index) => {
+                    const maxCount = subjectStats[0]?.count || 1
+                    const percentage = (subject.count / maxCount) * 100
+                    const colors = ["bg-blue-500", "bg-green-500", "bg-purple-500", "bg-orange-500", "bg-cyan-500"]
+                    return (
+                      <div key={subject.name} className="space-y-1">
+                        <div className="flex justify-between text-sm">
+                          <span className="font-medium truncate">{subject.name}</span>
+                          <span className="text-muted-foreground">{subject.count} kỳ thi</span>
+                        </div>
+                        <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${percentage}%` }}
+                            transition={{ duration: 0.8, delay: 0.5 + index * 0.1 }}
+                            className={`h-full ${colors[index]} rounded-full`}
+                          />
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
-                <div>
-                  <p className="text-2xl font-bold">{stats.totalTeachers}</p>
-                  <p className="text-xs text-muted-foreground">Giáo viên</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-        >
-          <Card className="hover:shadow-md transition-shadow">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                  <School className="w-5 h-5 text-purple-500" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{stats.totalClasses}</p>
-                  <p className="text-xs text-muted-foreground">Lớp học</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.25 }}
-        >
-          <Card className="hover:shadow-md transition-shadow">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-orange-500/10 flex items-center justify-center">
-                  <BookOpen className="w-5 h-5 text-orange-500" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{stats.totalSubjects}</p>
-                  <p className="text-xs text-muted-foreground">Môn học</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
-        >
-          <Card className="hover:shadow-md transition-shadow">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-cyan-500/10 flex items-center justify-center">
-                  <Calendar className="w-5 h-5 text-cyan-500" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{stats.totalExams}</p>
-                  <p className="text-xs text-muted-foreground">Kỳ thi</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.35 }}
-        >
-          <Card className="hover:shadow-md transition-shadow">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-yellow-500/10 flex items-center justify-center">
-                  <TrendingUp className="w-5 h-5 text-yellow-500" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{stats.ongoingExams}</p>
-                  <p className="text-xs text-muted-foreground">Đang thi</p>
-                </div>
-              </div>
+              )}
             </CardContent>
           </Card>
         </motion.div>
@@ -274,7 +341,7 @@ export default function AdminDashboard() {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.4 }}
+        transition={{ duration: 0.5, delay: 0.5 }}
         className="grid grid-cols-1 md:grid-cols-3 gap-4"
       >
         <Card className="border-l-4 border-l-blue-500">
@@ -308,11 +375,10 @@ export default function AdminDashboard() {
 
       {/* Recent Exams & Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Exams */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.5 }}
+          transition={{ duration: 0.5, delay: 0.55 }}
           className="lg:col-span-2"
         >
           <Card>
@@ -331,7 +397,6 @@ export default function AdminDashboard() {
                   recentExams.map((exam, index) => {
                     const status = statusConfig[exam.calculatedStatus as ExamStatus]
                     const StatusIcon = status.icon
-
                     return (
                       <motion.div
                         key={exam._id}
@@ -369,7 +434,6 @@ export default function AdminDashboard() {
           </Card>
         </motion.div>
 
-        {/* Quick Actions */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -403,6 +467,12 @@ export default function AdminDashboard() {
                 <Button variant="outline" className="w-full justify-start gap-2">
                   <Users className="w-4 h-4 text-blue-500" />
                   Quản lý người dùng
+                </Button>
+              </Link>
+              <Link href="/admin/reports" className="block">
+                <Button variant="outline" className="w-full justify-start gap-2">
+                  <TrendingUp className="w-4 h-4 text-green-500" />
+                  Báo cáo thống kê
                 </Button>
               </Link>
             </CardContent>

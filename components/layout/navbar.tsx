@@ -8,6 +8,7 @@ import Link from "next/link"
 import { useSeasonalContext } from "@/components/seasonal/seasonal-provider"
 import { SeasonalLogo } from "@/components/seasonal/seasonal-logo"
 import { EffectToggle } from "@/components/seasonal/effect-toggle"
+import { NotificationBell } from "@/components/layout/notification-bell"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +19,8 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
 interface UserInfo {
+  id?: string
+  _id?: string
   name: string
   email: string
   role: "admin" | "teacher" | "student"
@@ -114,6 +117,9 @@ export function Navbar() {
                 eventName={name}
               />
             )}
+
+            {/* Notification Bell */}
+            <NotificationBell userId={user?.id || user?._id} />
             
             {user ? (
               // Đã đăng nhập - hiện avatar và dropdown
@@ -175,6 +181,7 @@ export function Navbar() {
                 eventName={name}
               />
             )}
+            <NotificationBell userId={user?.id || user?._id} />
             <button
               onClick={() => setIsOpen(!isOpen)}
               className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"

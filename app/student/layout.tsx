@@ -18,6 +18,7 @@ import {
   GraduationCap,
   User,
   School,
+  ClipboardList,
 } from "lucide-react"
 
 const navigation = [
@@ -30,6 +31,11 @@ const navigation = [
     name: "Lớp học của tôi",
     href: "/student/classes",
     icon: School,
+  },
+  {
+    name: "Kỳ thi chung",
+    href: "/student/public-exams",
+    icon: ClipboardList,
   },
   {
     name: "Tra cứu Điểm",

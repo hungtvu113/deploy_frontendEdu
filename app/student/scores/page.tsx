@@ -35,17 +35,18 @@ type ExamScore = {
     _id: string
     code: string
     name: string
-  }
+  } | null
   class: {
     id: string
     code: string
     name: string
-  }
+  } | null
   teacher: {
     name: string
     email: string
-  }
+  } | null
   score: number | null
+  isPublicExam?: boolean
 }
 
 // Hàm tính trạng thái kỳ thi dựa trên ngày giờ
@@ -455,12 +456,18 @@ export default function StudentScoresPage() {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <BookOpen className="w-4 h-4 text-primary" />
-                      {exam.subject?.name || "-"}
+                      {exam.isPublicExam ? (
+                        <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full">Kỳ thi chung</span>
+                      ) : (
+                        <>
+                          <BookOpen className="w-4 h-4 text-primary" />
+                          {exam.subject?.name || "-"}
+                        </>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>
-                    <span className="text-sm">{exam.class?.name || "-"}</span>
+                    <span className="text-sm">{exam.class?.name || (exam.isPublicExam ? "-" : "-")}</span>
                   </TableCell>
                   <TableCell>{formatDate(exam.examDate)}</TableCell>
                   <TableCell>
